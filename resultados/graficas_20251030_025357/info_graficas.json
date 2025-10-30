@@ -1,0 +1,19 @@
+{
+    "fecha_generacion": "2025-10-30 02:53:59",
+    "modelo": {
+        "num_centros": 2,
+        "error_objetivo": 0.1,
+        "dataset": "5 entradas, 1 salida"
+    },
+    "metricas": {
+        "eg_entrenamiento": 0.4407648886108295,
+        "eg_prueba": 0.4407648886108295,
+        "convergencia": "NO_CONVERGE"
+    },
+    "graficas_generadas": [
+        "grafico_yr_vs_yd.png",
+        "grafico_error.png",
+        "grafico_dispersion.png",
+        "graficas_combinadas.png"
+    ]
+}

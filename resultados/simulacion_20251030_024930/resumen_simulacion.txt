@@ -1,0 +1,53 @@
+=== RESUMEN DE SIMULACIÓN RBF ===
+
+=== MÉTRICAS COMPARATIVAS DE SIMULACIÓN ===
+
+INFORMACIÓN DEL MODELO:
+• Centros radiales: 2
+• Dataset: 5 entradas, 1 salida
+• Error objetivo: 0.1
+• Fecha modelo: 2025-10-30 02:48:37
+• Convergencia: ❌ NO CONVERGE
+
+MÉTRICAS - CONJUNTO DE ENTRENAMIENTO:
+• Error General (EG): 0.44076489
+• Error Absoluto Medio (MAE): 0.44076489
+• Raíz del Error Cuadrático Medio (RMSE): 0.56986877
+
+MÉTRICAS - CONJUNTO DE PRUEBA:
+• Error General (EG): 0.44104691
+• Error Absoluto Medio (MAE): 0.44104691
+• Raíz del Error Cuadrático Medio (RMSE): 0.59858471
+
+VERIFICACIÓN DE CONVERGENCIA:
+• EG entrenamiento (0.440765) > Error objetivo (0.1)
+• Estado: ❌ NO CONVERGE
+
+
+=== DETALLES ===
+
+=== INFORMACIÓN DE LA SIMULACIÓN ===
+
+• Dataset: 5 entradas, 1 salida
+
+• Centros radiales: 2
+
+• Patrones entrenamiento: 42
+
+• Patrones prueba: 18
+
+• Error objetivo: 0.1
+
+• Fecha modelo: 2025-10-30 02:48:37
+
+
+=== SIMULACIÓN ENTRENAMIENTO ===
+
+• Error General (EG): 0.440765
+
+• Convergencia: ❌ NO CONVERGE
+
+
+=== SIMULACIÓN PRUEBA ===
+
+• Error General (EG): 0.441047

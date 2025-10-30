@@ -1,0 +1,32 @@
+{
+    "fecha_simulacion": "2025-10-30 02:49:30",
+    "modelo": {
+        "num_centros": 2,
+        "error_objetivo": 0.1,
+        "fecha_entrenamiento": "2025-10-30 02:48:37",
+        "entradas": 5,
+        "columnas_entrada": [
+            "Temperatura_Suelo_C",
+            "Humedad_Suelo_%",
+            "PH_Suelo",
+            "Luminosidad_Lux",
+            "Humedad_Ambiente_%"
+        ],
+        "columna_salida": [
+            "Y"
+        ]
+    },
+    "metricas_entrenamiento": {
+        "eg": 0.4407648886108295,
+        "mae": 0.4407648886108295,
+        "rmse": 0.5698687682078573,
+        "convergencia": "NO_CONVERGE"
+    },
+    "metricas_prueba": {
+        "eg": 0.44104691384499445,
+        "mae": 0.44104691384499445,
+        "rmse": 0.59858471372518
+    },
+    "patrones_personalizados": 0,
+    "resumen_convergencia": "EG entrenamiento (0.440765) > Error objetivo (0.1)"
+}

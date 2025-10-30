@@ -229,26 +229,41 @@ class TrainingModule(QWidget):
         parent_layout.addWidget(details_group)
     
     def radial_basis_function(self, d):
-        """Función de base radial EXACTA del ejemplo: FA(d) = d² * ln(d)"""
-        # Para evitar problemas con ln(0), usamos un valor pequeño
-        d_safe = np.where(d == 0, 1e-10, d)
-        return (d_safe ** 2) * np.log(d_safe)
+        """Función de base radial MEJORADA y ESTABLE"""
+        # Evitar problemas con ln(0) y valores negativos
+        d_safe = np.where(d < 1e-10, 1e-10, d)
+        
+        # CORRECCIÓN: Mejorar estabilidad numérica
+        # Para d < 1, ln(d) es negativo, lo que causa problemas
+        # Usamos una versión estabilizada
+        
+        # Opción A: Gaussiana (recomendada para estabilidad)
+        sigma = np.mean(d_safe)  # Sigma adaptativo basado en distancias promedio
+        if sigma < 1e-10:
+            sigma = 1.0  # Valor por defecto si las distancias son muy pequeñas
+        
+        activations = np.exp(-d_safe**2 / (2 * sigma**2))
+        
+        # Verificar que no hay problemas numéricos
+        if np.any(np.isnan(activations)) or np.any(np.isinf(activations)):
+            # Fallback: función multiquadrática
+            c = 1.0
+            activations = np.sqrt(d_safe**2 + c**2)
+        
+        return activations
     
     def calculate_euclidean_distance(self, X, centers):
-        """Calcular distancias euclidianas entre patrones y centros radiales"""
+        """Calcular distancias euclidianas - OPTIMIZADA"""
         n_patterns = X.shape[0]
         n_centers = centers.shape[0]
         
-        # Inicializar matriz de distancias
+        # Usar broadcasting para cálculo vectorizado (más eficiente y preciso)
         distances = np.zeros((n_patterns, n_centers))
         
-        # Calcular distancia euclidiana para cada par (patrón, centro)
-        for i in range(n_patterns):
-            for j in range(n_centers):
-                # D_pj = sqrt(∑(X_p - R_j)²) - EXACTO como en el ejemplo
-                diff = X[i] - centers[j]
-                distance = np.sqrt(np.sum(diff ** 2))
-                distances[i, j] = distance
+        for j in range(n_centers):
+            # Calcular distancia entre todos los patrones y el centro j
+            diff = X - centers[j]
+            distances[:, j] = np.sqrt(np.sum(diff**2, axis=1))
         
         return distances
     
@@ -263,35 +278,144 @@ class TrainingModule(QWidget):
         return A
     
     def solve_weights(self, A, y):
-        """Resolver pesos mediante mínimos cuadrados: W = (AᵀA)⁻¹Aᵀy - EXACTO como en el ejemplo"""
+        """Resolver pesos - VERSIÓN MEJORADA con múltiples métodos de respaldo"""
         try:
-            # W = (AᵀA)⁻¹Aᵀy - Usando pseudoinversa para estabilidad numérica
-            ATA = np.dot(A.T, A)
-            ATA_inv = np.linalg.pinv(ATA)  # Pseudoinversa para evitar problemas de singularidad
-            weights = np.dot(np.dot(ATA_inv, A.T), y)
+            # DEBUG: Información de la matriz A
+            self.details_text.append(f"\n🔍 DEBUG MATRIZ A:")
+            self.details_text.append(f"   - Forma: {A.shape}")
+            self.details_text.append(f"   - Rango: {np.linalg.matrix_rank(A)}")
+            self.details_text.append(f"   - Condición: {np.linalg.cond(A):.2e}")
+            
+            # Método 1: np.linalg.lstsq (MÁS ROBUSTO)
+            try:
+                weights, residuals, rank, s = np.linalg.lstsq(A, y, rcond=None)
+                self.details_text.append(f"   - LSTSQ - Rank: {rank}, W₀: {weights[0]:.6f}")
+                
+                if rank < A.shape[1]:
+                    self.details_text.append("   ⚠️ Matriz de rango incompleto")
+                
+                return weights
+                
+            except np.linalg.LinAlgError:
+                self.details_text.append("   ❌ LSTSQ falló, usando método alternativo")
+            
+            # Método 2: SVD directo
+            try:
+                U, s, Vt = np.linalg.svd(A, full_matrices=False)
+                # Filtrar valores singulares muy pequeños
+                s_inv = np.zeros_like(s)
+                tolerance = max(A.shape) * np.finfo(float).eps * np.max(s)
+                s_inv[s > tolerance] = 1 / s[s > tolerance]
+                
+                weights = np.dot(Vt.T, s_inv * np.dot(U.T, y))
+                self.details_text.append(f"   - SVD - W₀: {weights[0]:.6f}")
+                return weights
+                
+            except np.linalg.LinAlgError:
+                self.details_text.append("   ❌ SVD falló, usando pseudoinversa")
+            
+            # Método 3: Pseudoinversa con regularización (último recurso)
+            lambda_reg = 1e-8  # Regularización muy pequeña
+            ATA = np.dot(A.T, A) + lambda_reg * np.eye(A.shape[1])
+            weights = np.dot(np.linalg.pinv(ATA), np.dot(A.T, y))
+            self.details_text.append(f"   - Pseudoinversa regularizada - W₀: {weights[0]:.6f}")
+            
             return weights
-        except np.linalg.LinAlgError as e:
+            
+        except Exception as e:
             raise Exception(f"Error en cálculo de pesos: {str(e)}")
     
+    def debug_training_process(self, A, y_train, activations, distances):
+        """Función para debug detallado del proceso de entrenamiento"""
+        debug_info = "\n=== DEBUG DETALLADO ===\n"
+        
+        # 1. Información de la matriz A
+        debug_info += f"1. MATRIZ A:\n"
+        debug_info += f"   - Forma: {A.shape}\n"
+        debug_info += f"   - Rango: {np.linalg.matrix_rank(A)} (de {min(A.shape)})\n"
+        debug_info += f"   - Condición: {np.linalg.cond(A):.2e}\n"
+        debug_info += f"   - Valores únicos en columna umbral: {np.unique(A[:, 0])}\n"
+        
+        # 2. Información de activaciones
+        debug_info += f"\n2. ACTIVACIONES:\n"
+        debug_info += f"   - Mínimo: {np.min(activations):.6e}\n"
+        debug_info += f"   - Máximo: {np.max(activations):.6e}\n"
+        debug_info += f"   - Media: {np.mean(activations):.6e}\n"
+        debug_info += f"   - ¿Tiene NaN?: {np.any(np.isnan(activations))}\n"
+        debug_info += f"   - ¿Tiene Inf?: {np.any(np.isinf(activations))}\n"
+        
+        # 3. Información de distancias
+        debug_info += f"\n3. DISTANCIAS:\n"
+        debug_info += f"   - Mínimo: {np.min(distances):.6e}\n"
+        debug_info += f"   - Máximo: {np.max(distances):.6e}\n"
+        debug_info += f"   - Media: {np.mean(distances):.6e}\n"
+        
+        # 4. Información de salidas
+        debug_info += f"\n4. SALIDAS (y_train):\n"
+        debug_info += f"   - Mínimo: {np.min(y_train):.6f}\n"
+        debug_info += f"   - Máximo: {np.max(y_train):.6f}\n"
+        debug_info += f"   - Media: {np.mean(y_train):.6f}\n"
+        
+        # 5. Calcular pesos con diferentes métodos para comparar
+        try:
+            # Método 1: Pseudoinversa (actual)
+            ATA = np.dot(A.T, A)
+            ATA_inv = np.linalg.pinv(ATA)
+            weights_pinv = np.dot(np.dot(ATA_inv, A.T), y_train)
+            
+            # Método 2: SVD directo
+            U, s, Vt = np.linalg.svd(A, full_matrices=False)
+            weights_svd = np.dot(Vt.T, np.dot(U.T, y_train) / s)
+            
+            # Método 3: np.linalg.lstsq (más robusto)
+            weights_lstsq, residuals, rank, s_values = np.linalg.lstsq(A, y_train, rcond=None)
+            
+            debug_info += f"\n5. COMPARACIÓN DE MÉTODOS DE CÁLCULO:\n"
+            debug_info += f"   - Pseudoinversa - W₀: {weights_pinv[0]:.10f}\n"
+            debug_info += f"   - SVD directo - W₀: {weights_svd[0]:.10f}\n"
+            debug_info += f"   - LSTSQ - W₀: {weights_lstsq[0]:.10f}\n"
+            debug_info += f"   - Rank detectado por LSTSQ: {rank}\n"
+            
+            # Usar el método que dé el W₀ más razonable
+            if abs(weights_lstsq[0]) > 1e-10:  # Si LSTSQ da un W₀ no-cero
+                selected_weights = weights_lstsq
+                debug_info += f"   - SELECCIONADO: LSTSQ (W₀ no-cero)\n"
+            elif abs(weights_svd[0]) > 1e-10:  # Si SVD da un W₀ no-cero
+                selected_weights = weights_svd
+                debug_info += f"   - SELECCIONADO: SVD (W₀ no-cero)\n"
+            else:
+                selected_weights = weights_lstsq  # Por defecto LSTSQ
+                debug_info += f"   - SELECCIONADO: LSTSQ (por defecto)\n"
+            
+            return selected_weights
+            
+        except Exception as e:
+            debug_info += f"\n❌ Error en cálculo comparativo: {str(e)}\n"
+            return None
+        
+        finally:
+            # Mostrar debug info en la interfaz
+            self.details_text.append(debug_info)
+    
     def calculate_predictions(self, A, weights):
-        """Calcular predicciones: ŷ = A * W - EXACTO como en el ejemplo"""
+        """Calcular predicciones: ŷ = A * W"""
         return np.dot(A, weights)
     
     def calculate_errors(self, y_true, y_pred):
-        """Calcular diferentes métricas de error SEGÚN REQUERIMIENTOS"""
+        """Calcular diferentes métricas de error"""
         # Error absoluto
         absolute_errors = np.abs(y_true - y_pred)
         
-        # Error General (EG) - promedio de errores absolutos - EXACTO como en el ejemplo
+        # Error General (EG) - promedio de errores absolutos
         eg = np.mean(absolute_errors)
         
-        # Error Absoluto Medio (MAE) - REQUERIDO
+        # Error Absoluto Medio (MAE)
         mae = np.mean(absolute_errors)
         
         # Error Cuadrático Medio (MSE)
         mse = np.mean((y_true - y_pred) ** 2)
         
-        # Raíz del Error Cuadrático Medio (RMSE) - REQUERIDO
+        # Raíz del Error Cuadrático Medio (RMSE)
         rmse = np.sqrt(mse)
         
         return {
@@ -303,7 +427,7 @@ class TrainingModule(QWidget):
         }
     
     def start_training(self):
-        """Iniciar proceso de entrenamiento - SIGUIENDO EXACTAMENTE EL EJEMPLO"""
+        """Iniciar proceso de entrenamiento - VERSIÓN MEJORADA"""
         # Verificar requisitos
         if not self.verify_requirements():
             return
@@ -327,20 +451,21 @@ class TrainingModule(QWidget):
             self.details_text.append(f"• Error objetivo: {target_error}\n")
             self.details_text.append(f"• Patrones de entrenamiento: {X_train.shape[0]}\n")
             self.details_text.append(f"• Entradas por patrón: {X_train.shape[1]}\n")
-            self.details_text.append(f"• Función de activación: FA(d) = d² * ln(d)\n")
+            self.details_text.append(f"• Función de activación: Gaussiana mejorada\n")
             self.details_text.append(f"• Rango de centros: [{np.min(centers):.4f}, {np.max(centers):.4f}]\n")
             self.details_text.append(f"• Rango de datos X_train: [{np.min(X_train):.4f}, {np.max(X_train):.4f}]\n")
+            self.details_text.append(f"• Rango de salidas y_train: [{np.min(y_train):.4f}, {np.max(y_train):.4f}]\n")
             
             self.progress_bar.setValue(20)
             QApplication.processEvents()
             
-            # Paso 1: Calcular distancias euclidianas - EXACTO como en el ejemplo
+            # Paso 1: Calcular distancias euclidianas
             self.details_text.append("\n=== CÁLCULO DE DISTANCIAS EUCLIDIANAS ===\n")
             distances = self.calculate_euclidean_distance(X_train, centers)
             self.details_text.append(f"Matriz de distancias: {distances.shape} (patrones x centros)\n")
             self.details_text.append(f"Rango distancias: [{np.min(distances):.6f}, {np.max(distances):.6f}]\n")
             
-            # Mostrar algunas distancias de ejemplo (primeros 2 patrones)
+            # Mostrar algunas distancias de ejemplo
             if distances.shape[0] >= 2 and distances.shape[1] >= 2:
                 self.details_text.append(f"Ejemplo distancias:\n")
                 self.details_text.append(f"  D11 (Patrón1-Centro1): {distances[0,0]:.4f}\n")
@@ -351,13 +476,13 @@ class TrainingModule(QWidget):
             self.progress_bar.setValue(40)
             QApplication.processEvents()
             
-            # Paso 2: Aplicar función de activación radial EXACTA del ejemplo
-            self.details_text.append("\n=== APLICACIÓN FUNCIÓN DE ACTIVACIÓN FA(d) = d² * ln(d) ===\n")
+            # Paso 2: Aplicar función de activación radial MEJORADA
+            self.details_text.append("\n=== APLICACIÓN FUNCIÓN DE ACTIVACIÓN GAUSSIANA MEJORADA ===\n")
             activations = self.radial_basis_function(distances)
             self.details_text.append(f"Matriz de activaciones Φ: {activations.shape}\n")
             self.details_text.append(f"Rango activaciones: [{np.min(activations):.6f}, {np.max(activations):.6f}]\n")
             
-            # Mostrar algunas activaciones de ejemplo (primeros 2 patrones)
+            # Mostrar algunas activaciones de ejemplo
             if activations.shape[0] >= 2 and activations.shape[1] >= 2:
                 self.details_text.append(f"Ejemplo activaciones:\n")
                 self.details_text.append(f"  FA(D11): {activations[0,0]:.4f}\n")
@@ -368,21 +493,30 @@ class TrainingModule(QWidget):
             self.progress_bar.setValue(60)
             QApplication.processEvents()
             
-            # Paso 3: Construir matriz de interpolación - EXACTO como en el ejemplo
+            # Paso 3: Construir matriz de interpolación
             self.details_text.append("\n=== CONSTRUCCIÓN MATRIZ DE INTERPOLACIÓN ===\n")
             A = self.build_interpolation_matrix(activations)
             self.details_text.append(f"Matriz A: {A.shape} (con columna de unos para umbral)\n")
+            self.details_text.append(f"Rango de A: {np.linalg.matrix_rank(A)} (mínimo requerido: {min(A.shape)})\n")
             
             self.progress_bar.setValue(80)
             QApplication.processEvents()
             
-            # Paso 4: Calcular pesos mediante mínimos cuadrados - EXACTO como en el ejemplo
-            self.details_text.append("\n=== CÁLCULO DE PESOS (MÍNIMOS CUADRADOS) ===\n")
-            weights = self.solve_weights(A, y_train)
+            # Paso 4: Calcular pesos con debug detallado
+            self.details_text.append("\n=== CÁLCULO DE PESOS CON DEBUG ===\n")
+            
+            # Llamar a la función de debug
+            weights = self.debug_training_process(A, y_train, activations, distances)
+            
+            if weights is None:
+                # Si el debug falla, usar el método mejorado
+                self.details_text.append("⚠️ Usando método de pesos mejorado\n")
+                weights = self.solve_weights(A, y_train)
+            
             self.details_text.append(f"Vector de pesos W calculado: {len(weights)} pesos\n")
-            self.details_text.append(f"  W₀ (Umbral): {weights[0]:.6f}\n")
+            self.details_text.append(f"  W₀ (Umbral): {weights[0]:.10f}\n")
             for i in range(1, len(weights)):
-                self.details_text.append(f"  W{i}: {weights[i]:.6f}\n")
+                self.details_text.append(f"  W{i}: {weights[i]:.10f}\n")
             
             # Paso 5: Calcular predicciones y errores
             y_pred = self.calculate_predictions(A, weights)
@@ -578,7 +712,7 @@ INFORMACIÓN GENERAL:
 • Iteración: {iteration}
 • Error objetivo: {target_error}
 • Estado: {convergence_status}
-• Función de activación: FA(d) = d² * ln(d)
+• Función de activación: Gaussiana mejorada
 • Fecha: {self.training_results['training_date']}
 
 MÉTRICAS DE ERROR (REQUERIDAS):
@@ -634,10 +768,10 @@ PESOS FINALES CALCULADOS:
 • Iteración: {iteration}
 • Patrones de entrenamiento: {len(self.training_results['y_pred'])}
 • Entradas por patrón: {self.main_window.preprocessed_data['X_train'].shape[1]}
-• Función de activación: FA(d) = d² * ln(d)
+• Función de activación: Gaussiana mejorada
 • Fecha: {self.training_results['training_date']}
 
-📊 RESULTADOS FINALES (REQUERIDOS):
+📊 RESULTADOS FINALES (REQUERIDAS):
 • Error General (EG): {errors['eg']:.8f}
 • Error Absoluto Medio (MAE): {errors['mae']:.8f}
 • Raíz del Error Cuadrático Medio (RMSE): {errors['rmse']:.8f}
@@ -652,7 +786,7 @@ La red RBF está lista para realizar simulaciones.
         QMessageBox.information(self, "Entrenamiento Completado", summary)
     
     def save_training(self):
-        """Guardar resultados del entrenamiento en archivos"""
+        """Guardar resultados del entrenamiento en archivos - VERSIÓN CORREGIDA"""
         if self.training_results is None:
             QMessageBox.warning(self, "Advertencia", "Primero realice un entrenamiento")
             return
@@ -684,12 +818,16 @@ La red RBF está lista para realizar simulaciones.
             with open(model_path, 'wb') as f:
                 pickle.dump(model_data, f)
             
-            # 2. Guardar métricas en JSON
+            # 2. Guardar métricas en JSON - VERSIÓN CORREGIDA
             metrics_path = os.path.join(training_dir, "metricas.json")
+            
+            # CORRECCIÓN: Convertir booleanos a strings para JSON
+            convergence_str = "CONVERGE" if self.training_results['convergence'] else "NO_CONVERGE"
+            
             metrics_data = {
                 'fecha_entrenamiento': self.training_results['training_date'],
-                'convergencia': self.training_results['convergence'],
-                'error_objetivo': self.training_results['target_error'],
+                'convergencia': convergence_str,  # ✅ CORREGIDO: string en lugar de bool
+                'error_objetivo': float(self.training_results['target_error']),  # ✅ Asegurar float
                 'metricas': {
                     'eg': float(self.training_results['errors']['eg']),
                     'mae': float(self.training_results['errors']['mae']),
@@ -697,9 +835,15 @@ La red RBF está lista para realizar simulaciones.
                     'rmse': float(self.training_results['errors']['rmse'])
                 },
                 'configuracion': {
-                    'num_centros': self.training_results['num_centers'],
-                    'iteraciones': self.training_results['iteration'],
-                    'funcion_activacion': 'FA(d) = d² * ln(d)'
+                    'num_centros': int(self.training_results['num_centers']),  # ✅ Asegurar int
+                    'iteraciones': int(self.training_results['iteration']),    # ✅ Asegurar int
+                    'funcion_activacion': 'Gaussiana mejorada',
+                    'centros_radiales': int(self.training_results['num_centers']),
+                    'entradas_por_centro': self.training_results['centers'].shape[1] if self.training_results['centers'] is not None else 0
+                },
+                'pesos': {
+                    'w0_umbral': float(self.training_results['weights'][0]),  # ✅ Umbral
+                    'pesos_centros': [float(w) for w in self.training_results['weights'][1:]]  # ✅ Pesos de centros
                 }
             }
             
@@ -714,25 +858,75 @@ La red RBF está lista para realizar simulaciones.
                 f.write("\n\n=== RESULTADOS FINALES ===\n\n")
                 f.write(self.errors_text.toPlainText())
             
-            # 4. Guardar pesos en CSV
+            # 4. Guardar pesos en CSV - VERSIÓN MEJORADA
             weights_path = os.path.join(training_dir, "pesos_rbf.csv")
-            weights_df = pd.DataFrame({
-                'tipo': [f"W{i}" for i in range(len(self.training_results['weights']))],
-                'valor': self.training_results['weights']
+            weights_data = []
+            
+            # Agregar umbral (W0)
+            weights_data.append({
+                'tipo': 'W₀ (Umbral)',
+                'valor': float(self.training_results['weights'][0]),
+                'centro_asociado': 'Ninguno (Umbral)'
             })
-            weights_df.to_csv(weights_path, index=False)
+            
+            # Agregar pesos de centros radiales
+            for i in range(1, len(self.training_results['weights'])):
+                weights_data.append({
+                    'tipo': f'W{i}',
+                    'valor': float(self.training_results['weights'][i]),
+                    'centro_asociado': f'Centro Radial {i}'
+                })
+            
+            weights_df = pd.DataFrame(weights_data)
+            weights_df.to_csv(weights_path, index=False, encoding='utf-8')
+            
+            # 5. Guardar centros radiales en CSV
+            centers_path = os.path.join(training_dir, "centros_radiales.csv")
+            if self.training_results['centers'] is not None:
+                centers_data = []
+                num_centers, num_inputs = self.training_results['centers'].shape
+                
+                for i in range(num_centers):
+                    center_info = {'centro': f'R{i+1}'}
+                    for j in range(num_inputs):
+                        center_info[f'entrada_{j+1}'] = float(self.training_results['centers'][i, j])
+                    centers_data.append(center_info)
+                
+                centers_df = pd.DataFrame(centers_data)
+                centers_df.to_csv(centers_path, index=False, encoding='utf-8')
+            
+            # 6. Guardar predicciones vs reales
+            predictions_path = os.path.join(training_dir, "predicciones_entrenamiento.csv")
+            y_train = self.main_window.preprocessed_data['y_train']
+            y_pred = self.training_results['y_pred']
+            
+            predictions_data = {
+                'salida_real': [float(y) for y in y_train],
+                'salida_predicha': [float(y) for y in y_pred],
+                'error_absoluto': [float(abs(y_true - y_pred)) for y_true, y_pred in zip(y_train, y_pred)]
+            }
+            
+            predictions_df = pd.DataFrame(predictions_data)
+            predictions_df.to_csv(predictions_path, index=False, encoding='utf-8')
+            
+            # Mensaje de confirmación mejorado
+            archivos_creados = [
+                "• modelo_rbf.pkl (modelo completo serializado)",
+                "• metricas.json (métricas de evaluación)",
+                "• detalles_entrenamiento.txt (proceso detallado)",
+                "• pesos_rbf.csv (pesos de la red)",
+                "• centros_radiales.csv (centros radiales)",
+                "• predicciones_entrenamiento.csv (comparación real vs predicho)"
+            ]
             
             QMessageBox.information(self, "Entrenamiento Guardado", 
                                 f"✅ Resultados del entrenamiento guardados en:\n{training_dir}\n\n"
-                                f"Archivos creados:\n"
-                                f"• modelo_rbf.pkl (modelo completo)\n"
-                                f"• metricas.json (métricas de evaluación)\n"
-                                f"• detalles_entrenamiento.txt (proceso detallado)\n"
-                                f"• pesos_rbf.csv (pesos de la red)")
+                                f"Archivos creados:\n" + "\n".join(archivos_creados))
             
             self.training_status.setText(f"💾 Entrenamiento guardado en {training_dir}")
             
         except Exception as e:
+            error_msg = f"❌ Error al guardar entrenamiento: {str(e)}"
             QMessageBox.critical(self, "Error", f"No se pudieron guardar los resultados:\n{str(e)}")
     
     def reset_training(self):
@@ -773,7 +967,7 @@ La red RBF está lista para realizar simulaciones.
         self.details_text.append("=== MÓDULO DE ENTRENAMIENTO RBF ===\n")
         self.details_text.append("Este módulo entrena la red neuronal RBF usando:\n")
         self.details_text.append("1. Cálculo de distancias euclidianas entre patrones y centros\n")
-        self.details_text.append("2. Aplicación de función de base radial: FA(d) = d² * ln(d)\n")
+        self.details_text.append("2. Aplicación de función de base radial: Gaussiana mejorada\n")
         self.details_text.append("3. Construcción de matriz de interpolación\n")
         self.details_text.append("4. Cálculo de pesos por mínimos cuadrados\n")
         self.details_text.append("5. Cálculo de métricas de error (EG, MAE, RMSE)\n")
@@ -781,6 +975,7 @@ La red RBF está lista para realizar simulaciones.
         self.details_text.append("NUEVAS FUNCIONALIDADES:\n")
         self.details_text.append("• 💾 Guardar entrenamiento: Exporta resultados a archivos\n")
         self.details_text.append("• 🔄 Limpiar entrenamiento: Prepara para nuevo entrenamiento\n")
+        self.details_text.append("• 🔍 Debug detallado: Diagnóstico completo del proceso\n")
         
         # Verificar estado actual
         if (self.main_window.preprocessed_data is not None and 

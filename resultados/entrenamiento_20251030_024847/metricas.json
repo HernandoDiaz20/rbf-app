@@ -1,0 +1,25 @@
+{
+    "fecha_entrenamiento": "2025-10-30 02:48:37",
+    "convergencia": "NO_CONVERGE",
+    "error_objetivo": 0.1,
+    "metricas": {
+        "eg": 0.4407648886108295,
+        "mae": 0.4407648886108295,
+        "mse": 0.3247504129787406,
+        "rmse": 0.5698687682078573
+    },
+    "configuracion": {
+        "num_centros": 2,
+        "iteraciones": 1,
+        "funcion_activacion": "Gaussiana mejorada",
+        "centros_radiales": 2,
+        "entradas_por_centro": 5
+    },
+    "pesos": {
+        "w0_umbral": 0.5140169404869378,
+        "pesos_centros": [
+            -0.30127132234502996,
+            0.6810730548745407
+        ]
+    }
+}

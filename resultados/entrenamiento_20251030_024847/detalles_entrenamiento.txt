@@ -1,0 +1,145 @@
+=== DETALLES DEL ENTRENAMIENTO RBF ===
+
+=== INFORMACIÓN GENERAL ===
+
+• Número de centros radiales: 2
+
+• Iteración: 1 (entrenamiento único)
+
+• Error objetivo: 0.1
+
+• Patrones de entrenamiento: 42
+
+• Entradas por patrón: 5
+
+• Función de activación: Gaussiana mejorada
+
+• Rango de centros: [5.7717, 6052.9344]
+
+• Rango de datos X_train: [5.5200, 9757.0000]
+
+• Rango de salidas y_train: [0.0000, 2.0000]
+
+
+=== CÁLCULO DE DISTANCIAS EUCLIDIANAS ===
+
+Matriz de distancias: (42, 2) (patrones x centros)
+
+Rango distancias: [26.334015, 5811.682791]
+
+Ejemplo distancias:
+
+  D11 (Patrón1-Centro1): 2752.7267
+
+  D21 (Patrón1-Centro2): 646.6170
+
+  D12 (Patrón2-Centro1): 2032.3979
+
+  D22 (Patrón2-Centro2): 4139.9918
+
+
+=== APLICACIÓN FUNCIÓN DE ACTIVACIÓN GAUSSIANA MEJORADA ===
+
+Matriz de activaciones Φ: (42, 2)
+
+Rango activaciones: [0.037467, 0.999933]
+
+Ejemplo activaciones:
+
+  FA(D11): 0.4786
+
+  FA(D21): 0.9602
+
+  FA(D12): 0.6692
+
+  FA(D22): 0.1889
+
+
+=== CONSTRUCCIÓN MATRIZ DE INTERPOLACIÓN ===
+
+Matriz A: (42, 3) (con columna de unos para umbral)
+
+Rango de A: 3 (mínimo requerido: 3)
+
+
+=== CÁLCULO DE PESOS CON DEBUG ===
+
+
+=== DEBUG DETALLADO ===
+1. MATRIZ A:
+   - Forma: (42, 3)
+   - Rango: 3 (de 3)
+   - Condición: 5.54e+00
+   - Valores únicos en columna umbral: [1.]
+
+2. ACTIVACIONES:
+   - Mínimo: 3.746699e-02
+   - Máximo: 9.999326e-01
+   - Media: 6.042858e-01
+   - ¿Tiene NaN?: False
+   - ¿Tiene Inf?: False
+
+3. DISTANCIAS:
+   - Mínimo: 2.633401e+01
+   - Máximo: 5.811683e+03
+   - Media: 2.267597e+03
+
+4. SALIDAS (y_train):
+   - Mínimo: 0.000000
+   - Máximo: 2.000000
+   - Media: 0.761905
+
+5. COMPARACIÓN DE MÉTODOS DE CÁLCULO:
+   - Pseudoinversa - W₀: 0.5140169405
+   - SVD directo - W₀: 0.5140169405
+   - LSTSQ - W₀: 0.5140169405
+   - Rank detectado por LSTSQ: 3
+   - SELECCIONADO: LSTSQ (W₀ no-cero)
+
+Vector de pesos W calculado: 3 pesos
+
+  W₀ (Umbral): 0.5140169405
+
+  W1: -0.3012713223
+
+  W2: 0.6810730549
+
+Nota: Mostrando 20 de 42 patrones en la tabla de activaciones
+
+
+=== RESULTADOS FINALES ===
+
+=== RESULTADOS FINALES DEL ENTRENAMIENTO ===
+
+INFORMACIÓN GENERAL:
+• Número de centros radiales: 2
+• Iteración: 1
+• Error objetivo: 0.1
+• Estado: ❌ NO CONVERGE
+• Función de activación: Gaussiana mejorada
+• Fecha: 2025-10-30 02:48:37
+
+MÉTRICAS DE ERROR (REQUERIDAS):
+• Error General (EG): 0.4407648886
+• Error Absoluto Medio (MAE): 0.4407648886
+• Raíz del Error Cuadrático Medio (RMSE): 0.5698687682
+
+ESTADÍSTICAS DE LAS SALIDAS:
+• Salidas reales (y_train): 
+  - Mínimo: 0.000000
+  - Máximo: 2.000000
+  - Media: 0.761905
+  - Desviación estándar: 0.609821
+
+• Salidas predichas (ŷ): 
+  - Mínimo: 0.437986
+  - Máximo: 1.023779
+  - Media: 0.761905
+  - Desviación estándar: 0.217098
+
+PESOS FINALES CALCULADOS:
+• W₀ (Umbral): 0.5140169405
+• W1: -0.3012713223
+• W2: 0.6810730549
+
+CONVERGENCIA: EG (0.440765) > Error objetivo (0.1)
